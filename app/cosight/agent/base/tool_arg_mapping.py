@@ -1,10 +1,10 @@
-# 专属函数参数映射与必填项配置
-# 仅当函数名命中此表时才进行映射；否则不做任何转换
+# Dedicated function parameter mapping and required field configuration
+# Only perform mapping when function name matches this table; otherwise no conversion
 
 from typing import Dict, List
 
 
-# 结构：
+# Structure:
 # FUNCTION_ARG_MAPPING = {
 #   'function_name_lower': {
 #       'required': ['param1', 'param2'],

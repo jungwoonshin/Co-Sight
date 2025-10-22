@@ -24,13 +24,13 @@ from app.common.logger_util import logger
 
 class EventManager:
     def __init__(self):
-        # 结构: {event_type: {plan_id: [callbacks]}}
+        # Structure: {event_type: {plan_id: [callbacks]}}
         self._subscribers: Dict[str, Dict[str, List[Callable]]] = {}
         self._lock = Lock()
         self._executor = ThreadPoolExecutor()
 
     def subscribe(self, event_type: str, plan_id: str, callback: Callable):
-        """订阅事件，关联计划ID"""
+        """Subscribe to events, associate with plan ID"""
         with self._lock:
             if event_type not in self._subscribers:
                 self._subscribers[event_type] = {}
@@ -38,8 +38,8 @@ class EventManager:
         logger.info(f"Subscribed to {event_type} for plan_id: {plan_id}, total callbacks: {len(self._subscribers[event_type][plan_id])}")
 
     def publish(self, event_type: str, plan_or_plan_id=None, event_data=None):
-        """发布事件 - 支持Plan对象和工具事件数据"""
-        # 处理工具事件的特殊情况
+        """Publish events - supports Plan objects and tool event data"""
+        # Handle special case for tool events
         if event_type == "tool_event" and isinstance(plan_or_plan_id, str) and event_data is not None:
             plan_id = plan_or_plan_id
             callbacks = []
@@ -48,23 +48,23 @@ class EventManager:
                     callbacks = self._subscribers[event_type][plan_id].copy()
 
             logger.info(f"Publishing tool_event for plan_id: {plan_id}, callbacks: {len(callbacks)}")
-            # 对于工具事件，使用同步调用确保顺序
+            # For tool events, use synchronous calls to ensure order
             for callback in callbacks:
                 try:
                     callback(event_data)
                 except Exception as e:
-                    logger.error(f"工具事件回调执行失败: {e}", exc_info=True)
+                    logger.error(f"Tool event callback execution failed: {e}", exc_info=True)
             return
         
-        # 原有的Plan对象处理逻辑
+        # Original Plan object processing logic
         plan = plan_or_plan_id
         if plan is None:
             return
 
-        # 通过TaskManager获取plan_id
+        # Get plan_id through TaskManager
         plan_id = TaskManager.get_plan_id(plan)
         if not plan_id:
-            logger.warning(f"无法找到plan对象的ID: {plan}")
+            logger.warning(f"Cannot find plan object ID: {plan}")
             return
 
         callbacks = []
@@ -77,7 +77,7 @@ class EventManager:
             self._executor.submit(self._safe_callback, callback, plan)
 
     def unsubscribe(self, event_type: str, plan_id: str, callback: Callable):
-        """取消订阅特定计划ID的事件"""
+        """Unsubscribe from events for specific plan ID"""
         with self._lock:
             if (event_type in self._subscribers and
                     plan_id in self._subscribers[event_type]):

@@ -23,3 +23,7 @@ work_space/**
 .cursorindexingignore
 .specstory
 scripts/*
+
+gaia_dataset/
+gaia_results/
+gaia_workspaces/

@@ -22,7 +22,7 @@ from pathlib import PureWindowsPath, PurePosixPath
 from app.common.logger_util import logger
 
 
-# 在文件开头添加全局字典
+# Add global dictionaries at the beginning of the file
 folder_files_map: Dict[str, List[str]] = {}
 subfolder_files_map: Dict[str, List[str]] = {}
 
@@ -33,14 +33,14 @@ class Plan:
     def __init__(self, title: str = "", steps: List[str] = None, dependencies: Dict[int, List[int]] = None, work_space_path: str = ""):
         self.title = title
         self.steps = steps if steps else []
-        # 使用步骤内容（中文）作为key存储状态、备注和详细信息
+        # Use step content as key to store status, notes and detailed information
         self.step_statuses = {step: "not_started" for step in self.steps}
         self.step_notes = {step: "" for step in self.steps}
         self.step_details = {step: "" for step in self.steps}
         self.step_files = {step: "" for step in self.steps}
-        # 存储每个步骤的工具调用信息
+        # Store tool call information for each step
         self.step_tool_calls = {step: [] for step in self.steps}
-        # 使用邻接表表示依赖关系
+        # Use adjacency list to represent dependencies
         if dependencies:
             self.dependencies = self._normalize_dependencies(dependencies)
         else:
@@ -55,20 +55,20 @@ class Plan:
         return self.result
 
     def get_ready_steps(self) -> List[int]:
-        """获取所有前置依赖都已完成的步骤索引
+        """Get all step indices whose prerequisite dependencies are completed
 
-        返回:
-            List[int]: 可立即执行的步骤索引列表（返回所有符合条件的步骤）
+        Returns:
+            List[int]: List of step indices that can be executed immediately (returns all eligible steps)
         """
         logger.debug(f"get_ready_steps dependencies: {self.dependencies}")
         ready_steps = []
         for step_index in range(len(self.steps)):
-            # 获取该步骤的所有依赖
+            # Get all dependencies for this step
             dependencies = self.dependencies.get(step_index, [])
 
-            # 检查所有依赖是否都已完成
+            # Check if all dependencies are completed
             if all(self.step_statuses.get(self.steps[int(dep)]) not  in["not_started","in_progress"]  for dep in dependencies):
-                # 检查步骤本身是否未开始
+                # Check if the step itself has not started
                 if self.step_statuses.get(self.steps[step_index]) == "not_started":
                     ready_steps.append(step_index)
 
@@ -208,27 +208,27 @@ class Plan:
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def _normalize_dependencies(self, dependencies: Dict[int, List[int]]) -> Dict[int, List[int]]:
-        """将可能为 1 基编号的依赖转换为 0 基编号。
+        """Convert potentially 1-based indexed dependencies to 0-based indexing.
 
-        处理要点：
-        - 接受 JSON 传入时的字符串 key，统一转 int
-        - 判断是否需要整体减 1：若 keys 与其值均不包含 0，且最小值 >= 1，则视为 1 基编号
-        - 仅在满足上述条件时进行转换，否则原样返回
+        Processing points:
+        - Accept string keys from JSON input, convert to int uniformly
+        - Determine if overall subtraction by 1 is needed: if keys and their values don't contain 0, and minimum value >= 1, treat as 1-based indexing
+        - Only perform conversion when the above conditions are met, otherwise return as-is
         """
         try:
             deps_int: Dict[int, List[int]] = {int(k): v for k, v in dependencies.items()}
         except Exception:
-            deps_int = dependencies  # 已经是 int key
-        # 统一将值也转为 int
+            deps_int = dependencies  # Already int keys
+        # Uniformly convert values to int as well
         deps_int = {k: [int(d) for d in v] for k, v in deps_int.items()}
         if not deps_int:
             return deps_int
         keys = list(deps_int.keys())
         values = [d for v in deps_int.values() for d in v]
-        # 若已包含 0，则认为是 0 基编号
+        # If 0 is already included, consider it 0-based indexing
         if 0 in keys or any(d == 0 for d in values):
             return deps_int
-        # 若最小 key 和所有依赖值都 >=1，则视为 1 基编号，整体减 1
+        # If minimum key and all dependency values are >=1, treat as 1-based indexing, subtract 1 overall
         if min(keys) >= 1 and (not values or min(values) >= 1):
             return {k - 1: [d - 1 for d in v] for k, v in deps_int.items()}
         return deps_int
@@ -269,7 +269,7 @@ class Plan:
                 "blocked": "[!]",
             }.get(self.step_statuses.get(step), "[ ]")
 
-            # 显示依赖关系
+            # Show dependencies
             deps = self.dependencies.get(i, [])
             dep_str = f" (depends on: {', '.join(map(str, deps))})" if deps else ""
             output += f"Step{i} :{status_symbol} {step}{dep_str}\n"
@@ -290,7 +290,7 @@ class Plan:
 def get_last_folder_name(workspace_path: str) -> str:
     workspace_path = workspace_path if workspace_path else os.environ.get("WORKSPACE_PATH")
     if not workspace_path or not os.path.exists(workspace_path):
-        raise ValueError(f"{workspace_path} 工作空间路径未设置。")
+        raise ValueError(f"{workspace_path} workspace path not set.")
 
     current_os = platform.system()
     if current_os == 'Windows':
@@ -302,28 +302,28 @@ def get_last_folder_name(workspace_path: str) -> str:
 
 
 def extract_and_replace_paths(text: str, folder_name: str, workspace_path: str) -> Tuple[str, List[Dict[str, str]]]:
-    # 支持的文件扩展名
+    # Supported file extensions
     valid_extensions = r"(txt|md|pdf|docx|xlsx|csv|json|xml|html|png|jpg|jpeg|svg|py)"
 
-    # ✅ Linux/macOS 风格: /xxx/yyy/zzz/file.ext
-    # ✅ Windows 风格: C:\xxx\yyy\file.ext （或 UNC 网络路径 \\Server\Share\file.ext）
+    # ✅ Linux/macOS style: /xxx/yyy/zzz/file.ext
+    # ✅ Windows style: C:\xxx\yyy\file.ext (or UNC network path \\Server\Share\file.ext)
     path_file_pattern = rf'([a-zA-Z]:\\[^\s《》]+?\.{valid_extensions}|/[^\s《》]+?\.{valid_extensions})'
 
-    # ✅ 中文书名号引用的文件名（不区分平台）
+    # ✅ Chinese book title quoted file names (platform independent)
     quoted_file_pattern = rf'《([^《》\s]+?\.{valid_extensions})》'
 
     result_list: List[Dict[str, str]] = []
 
-    # 初始化该文件夹的文件列表（如果不存在）
+    # Initialize file list for this folder (if it doesn't exist)
     if folder_name not in folder_files_map:
         folder_files_map[folder_name] = []
 
     def replace_path_file(match):
         full_path = match.group(1)
-        filename = os.path.basename(full_path.replace("\\", "/"))  # 把反斜杠变成斜杠后再提取
+        filename = os.path.basename(full_path.replace("\\", "/"))  # Convert backslashes to forward slashes before extraction
         new_path = f"{folder_name}/{filename}"
 
-        # 如果文件名不在该文件夹的列表中，则添加
+        # If filename is not in the folder's list, add it
         # if filename not in folder_files_map[folder_name]:
         #     folder_files_map[folder_name].append(filename)
         #     result_list.append({
@@ -336,7 +336,7 @@ def extract_and_replace_paths(text: str, folder_name: str, workspace_path: str) 
         filename = match.group(1)
         new_path = f"{folder_name}/{filename}"
 
-        # 如果文件名不在该文件夹的列表中，则添加
+        # If filename is not in the folder's list, add it
         # if filename not in folder_files_map[folder_name]:
         #     folder_files_map[folder_name].append(filename)
         #     result_list.append({
@@ -350,12 +350,12 @@ def extract_and_replace_paths(text: str, folder_name: str, workspace_path: str) 
 
     workspace_path = workspace_path if workspace_path else os.environ.get("WORKSPACE_PATH")
     logger.info(f"extract and replace paths >>>>>>>>>>>>>>>>>>>>>>>>>>>> work_space_path: {workspace_path}")
-    # 再次读取工作空间目录下的所有文件
+    # Read all files in workspace directory again
     if workspace_path:
         try:
-            # 遍历工作空间目录下的所有文件
+            # Traverse all files in workspace directory
             for filename in os.listdir(workspace_path):
-                # 如果文件名不在该文件夹的列表中，则添加
+                # If filename is not in the folder's list, add it
                 if filename not in folder_files_map[folder_name]:
                     folder_files_map[folder_name].append(filename)
                     result_list.append({
@@ -363,25 +363,25 @@ def extract_and_replace_paths(text: str, folder_name: str, workspace_path: str) 
                         "path": f"{folder_name}/{filename}"
                     })
 
-            # 遍历工作空间目录下的所有子目录
+            # Traverse all subdirectories in workspace directory
             for root, dirs, files in os.walk(workspace_path):
                 logger.info(f"root:{root}")
-                if root != workspace_path:  # 跳过根目录，因为已经在上面处理过了
-                    # 获取相对路径
+                if root != workspace_path:  # Skip root directory as it's already processed above
+                    # Get relative path
                     rel_path = os.path.relpath(root, workspace_path)
-                    # 构建文件夹的唯一标识
+                    # Build unique identifier for folder
                     folder_key = f"{folder_name}/{rel_path}"
 
-                    # 初始化该文件夹的文件列表（如果不存在）
+                    # Initialize file list for this folder (if it doesn't exist)
                     if folder_key not in subfolder_files_map:
                         subfolder_files_map[folder_key] = []
                         logger.info(f"subfolder_files_map: {subfolder_files_map}")
 
                     for filename in files:
-                        # 如果文件名不在该文件夹的列表中，则添加
+                        # If filename is not in the folder's list, add it
                         if filename not in subfolder_files_map[folder_key]:
                             subfolder_files_map[folder_key].append(filename)
-                            # 构建完整的相对路径
+                            # Build complete relative path
                             full_rel_path = f"{folder_name}/{rel_path}/{filename}"
                             result_list.append({
                                 "name": filename,

@@ -19,9 +19,9 @@ from app.common.logger_util import logger
 
 def time_record(func):
     """
-    记录函数执行时间的装饰器
-    :param func: 被装饰的函数
-    :return: 装饰后的函数
+    Decorator to record function execution time
+    :param func: Function to be decorated
+    :return: Decorated function
     """
     @wraps(func)
     def wrapper(*args, **kwargs):

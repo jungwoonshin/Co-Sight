@@ -52,14 +52,14 @@ class CoSight:
             create_task += f"\nThe plan creation result is: {create_result}\nCreation failed, please carefully review the plan creation rules and select the create_plan tool to create the plan"
             retry_count += 1
         
-        # 使用持续监控的方式，而不是等待所有步骤完成
-        active_threads = {}  # 存储活跃的线程 {step_index: thread}
+        # Use continuous monitoring instead of waiting for all steps to complete
+        active_threads = {}  # Store active threads {step_index: thread}
         
         while True:
-            # 检查是否有新的可执行步骤
+            # Check for new executable steps
             ready_steps = self.plan.get_ready_steps()
             
-            # 启动新的可执行步骤
+            # Start new executable steps
             for step_index in ready_steps:
                 if step_index not in active_threads:
                     logger.info(f"Starting new step {step_index}")
@@ -68,33 +68,33 @@ class CoSight:
                     thread.start()
                     active_threads[step_index] = thread
             
-            # 检查已完成的线程
+            # Check completed threads
             completed_steps = []
             for step_index, thread in active_threads.items():
                 if not thread.is_alive():
                     completed_steps.append(step_index)
             
-            # 移除已完成的线程
+            # Remove completed threads
             for step_index in completed_steps:
                 del active_threads[step_index]
                 logger.info(f"Step {step_index} completed and thread removed")
             
-            # 如果没有活跃线程且没有可执行步骤，则退出
+            # Exit if no active threads and no executable steps
             if not active_threads and not ready_steps:
                 logger.info("No more ready steps to execute and no active threads")
                 break
             
-            # 短暂休眠，避免CPU占用过高
+            # Brief sleep to avoid high CPU usage
             import time
             time.sleep(0.1)
         
         return self.task_planner_agent.finalize_plan(question, output_format)
 
     def _execute_single_step(self, question, step_index):
-        """执行单个步骤"""
+        """Execute a single step"""
         try:
             logger.info(f"Starting execution of step {step_index}")
-            # 每个线程创建独立的TaskActorAgent实例
+            # Each thread creates an independent TaskActorAgent instance
             task_actor_agent = TaskActorAgent(
                 create_actor_instance(f"actor_for_step_{step_index}", self.work_space_path),
                 self.act_llm,
@@ -120,7 +120,7 @@ class CoSight:
             semaphore.acquire()
             try:
                 logger.info(f"Starting execution of step {step_index}")
-                # 每个线程创建独立的TaskActorAgent实例
+                # Each thread creates an independent TaskActorAgent instance
                 task_actor_agent = TaskActorAgent(
                     create_actor_instance(f"actor_for_step_{step_index}", self.work_space_path),
                     self.act_llm,
@@ -135,18 +135,18 @@ class CoSight:
             finally:
                 semaphore.release()
 
-        # 为每个ready_step创建并执行线程
+        # Create and execute threads for each ready_step
         threads = []
         for step_index in ready_steps:
             thread = Thread(target=execute_step, args=(step_index,))
             thread.start()
             threads.append(thread)
 
-        # 等待所有线程完成
+        # Wait for all threads to complete
         for thread in threads:
             thread.join()
 
-        # 收集结果
+        # Collect results
         while not result_queue.empty():
             step_index, result = result_queue.get()
             results[step_index] = result
@@ -155,17 +155,17 @@ class CoSight:
 
 
 if __name__ == '__main__':
-    # 配置工作区
+    # Configure workspace
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    # 获取当前时间并格式化
+    # Get current time and format it
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-    # 构造路径：/xxx/xxx/work_space/work_space_时间戳
+    # Construct path: /xxx/xxx/work_space/work_space_timestamp
     work_space_path = os.path.join(BASE_DIR, 'work_space', f'work_space_{timestamp}')
     os.makedirs(work_space_path, exist_ok=True)
 
-    # 配置CoSight
+    # Configure CoSight
     cosight = CoSight(llm_for_plan, llm_for_act, llm_for_tool, llm_for_vision, work_space_path)
 
-    # 运行CoSight
+    # Run CoSight
     result = cosight.execute("帮我写一篇中兴通讯的分析报告")
     logger.info(f"final result is {result}")

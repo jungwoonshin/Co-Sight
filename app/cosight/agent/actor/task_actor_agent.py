@@ -88,7 +88,7 @@ class TaskActorAgent(BaseAgent):
 
         }, {
 
-            # 配置tavily
+            # Configure tavily
             "api_key": get_tavily_config()
         })
         code_toolkit = CodeToolkit(sandbox="subprocess")
@@ -159,12 +159,12 @@ class TaskActorAgent(BaseAgent):
             result = self.execute(self.history, step_index=step_index)
             if self.plan.step_statuses.get(self.plan.steps[step_index], "") == "in_progress":
                 self.plan.mark_step(step_index, step_status="completed", step_notes=str(result))
-                # 步骤完成后，主动上报一次计划进度，确保前端收到manus-step
+                # After step completion, actively report plan progress once to ensure frontend receives manus-step
                 plan_report_event_manager.publish("plan_process", self.plan)
             return result
         except Exception as e:
             logger.error(f'act agent execute error: {str(e)}', exc_info=True)
             self.plan.mark_step(step_index, step_status="blocked", step_notes=str(e))
-            # 步骤失败同样上报一次计划进度
+            # Report plan progress for failed steps as well
             plan_report_event_manager.publish("plan_process", self.plan)
             return str(e)

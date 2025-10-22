@@ -21,14 +21,14 @@ def planner_system_prompt(question):
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../")))
     from llm import llm_for_plan
     
-    # 检查是否使用Claude模型
+    # Check if using Claude model
     is_claude = False
     if hasattr(llm_for_plan, 'model') and isinstance(llm_for_plan.model, str):
         if 'claude' in llm_for_plan.model.lower():
             is_claude = True
     contains_chinese = any('\u4e00' <= c <= '\u9fff' for c in question)
 
-    # 根据模型类型调整规划指导
+    # Adjust planning guidance based on model type
     if is_claude and contains_chinese:
         system_prompt = """
 # 角色与目标
@@ -221,14 +221,14 @@ def planner_create_plan_prompt(question, output_format=""):
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../")))
     from llm import llm_for_plan
     
-    # 检查是否使用Claude模型
+    # Check if using Claude model
     is_claude = False
     if hasattr(llm_for_plan, 'model') and isinstance(llm_for_plan.model, str):
         if 'claude' in llm_for_plan.model.lower():
             is_claude = True
     contains_chinese = any('\u4e00' <= c <= '\u9fff' for c in question)
 
-    # 根据模型类型提供不同的规划指导
+    # Provide different planning guidance based on model type
     if is_claude and contains_chinese:
         create_plan_prompt = f"""
 创建一个包含 3-5 个步骤的简洁且聚焦的计划以完成此任务：{question}
@@ -268,17 +268,17 @@ Ensure your final answer contains only the content in the following format: {out
 def planner_re_plan_prompt(question, plan, output_format=""):
     import sys
     import os
-    # 添加路径以导入 llm.py
+    # Add path to import llm.py
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../")))
     from llm import llm_for_plan
 
-    # 检查是否使用 Claude 模型
+    # Check if using Claude model
     is_claude = False
     if hasattr(llm_for_plan, 'model') and isinstance(llm_for_plan.model, str):
         if 'claude' in llm_for_plan.model.lower():
             is_claude = True
 
-    # 判断是否包含中文
+    # Check if contains Chinese
     contains_chinese = any('\u4e00' <= c <= '\u9fff' for c in question)
 
     if contains_chinese:
@@ -340,17 +340,17 @@ Evaluate and adjust the current plan according to the replanning rules in the sy
 def planner_finalize_plan_prompt(question, plan, output_format=""):
     import sys
     import os
-    # 添加路径以导入 llm.py
+    # Add path to import llm.py
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../")))
     from llm import llm_for_plan
 
-    # 检查是否使用 Claude 模型
+    # Check if using Claude model
     is_claude = False
     if hasattr(llm_for_plan, 'model') and isinstance(llm_for_plan.model, str):
         if 'claude' in llm_for_plan.model.lower():
             is_claude = True
 
-    # 判断是否包含中文
+    # Check if contains Chinese
     contains_chinese = any('\u4e00' <= c <= '\u9fff' for c in question)
 
     if contains_chinese:
@@ -363,7 +363,7 @@ def planner_finalize_plan_prompt(question, plan, output_format=""):
         if output_format:
             finalize_prompt += output_format_prompt
 
-        # 根据模型类型提供不同的总结指导（中文版）
+        # Provide different summary guidance based on model type (Chinese version)
         if is_claude:
             finalize_prompt += f"""
 计划状态：
@@ -394,7 +394,7 @@ Ensure your final answer contains only the content in the following format: {out
         if output_format:
             finalize_prompt += output_format_prompt
 
-        # 根据模型类型提供不同的总结指导（英文版）
+        # Provide different summary guidance based on model type (English version)
         if is_claude:
             finalize_prompt += f"""
 Plan status:

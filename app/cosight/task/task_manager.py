@@ -20,7 +20,7 @@ class TaskManager:
     _lock = Lock()
     plans = {}
     plan_to_id = {}
-    # 运行中计划集合，用于幂等与判重
+    # Set of running plans for idempotency and deduplication
     running_plans = set()
 
     @classmethod
@@ -49,7 +49,7 @@ class TaskManager:
                     del cls.plan_to_id[memory_address]
                 if plan_id in cls.plans:
                     del cls.plans[plan_id]
-            # 从运行集中移除（容错处理）
+            # Remove from running set (fault tolerance handling)
             if plan_id in cls.running_plans:
                 cls.running_plans.discard(plan_id)
 

@@ -21,14 +21,14 @@ from contextlib import contextmanager
 
 @contextmanager
 def async_event_loop():
-    """线程安全的事件循环上下文管理器"""
+    """Thread-safe event loop context manager"""
     try:
-        # 创建新的事件循环
+        # Create new event loop
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         yield loop
     finally:
-        # 清理事件循环
+        # Clean up event loop
         loop.close()
         asyncio.set_event_loop(None)
 
@@ -90,26 +90,26 @@ def get_mcp_tools(skills):
     return tools
 
 def convert_mcp_tools(mcp_configs):
-    """改进的MCP工具转换"""
+    """Improved MCP tool conversion"""
     tools = []
 
     for mcp_config in mcp_configs:
         for mcp_tool in mcp_config.get('mcp_tools', []):
             try:
-                # 获取输入参数模式
+                # Get input parameter schema
                 input_schema = getattr(mcp_tool, 'inputSchema', {})
 
-                # 构建参数结构
+                # Build parameter structure
                 parameters = {
                     "type": "object",
                     "properties": input_schema.get('properties', {}),
                     "required": input_schema.get('required', [])
                 }
 
-                # 清理空字段
+                # Clean empty fields
                 parameters = {k: v for k, v in parameters.items() if v}
 
-                # 构建工具格式
+                # Build tool format
                 tool_config = {
                     "type": "function",
                     "function": {
@@ -119,7 +119,7 @@ def convert_mcp_tools(mcp_configs):
                     }
                 }
 
-                # 添加必要校验
+                # Add necessary validation
                 if not tool_config["function"]["name"]:
                     raise ValueError("MCP tool name is required")
 

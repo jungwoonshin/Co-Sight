@@ -24,22 +24,22 @@ def execute_code_skill(work_space_path):
     return {
         'skill_name': 'execute_code',
         'skill_type': "function",
-        'display_name_zh': '执行代码',
+        'display_name_zh': 'Execute Code',
         'display_name_en': 'Execute Code',
-        'description_zh': f'执行给定的代码片段并返回结果,若要处理本地文件，必须在工作区: {work_space_path or os.getenv("WORKSPACE_PATH") or os.getcwd()}',
+        'description_zh': f'Execute given code snippet and return result. To process local files, must be in workspace: {work_space_path or os.getenv("WORKSPACE_PATH") or os.getcwd()}',
         'description_en': f'Execute a given code snippet and return the result. To process the local file, it must be in the working area: {work_space_path or os.getenv("WORKSPACE_PATH") or os.getcwd()}',
         'semantic_apis': ["api_code_execution"],
         'function': SkillFunction(
             id='4c44f9ad-be5c-4e6c-a9d8-1426b23828a9',
             name='app.cosight.code_interpreter.execute_code',
-            description_zh='执行Python代码片段并返回输出结果',
+            description_zh='Execute Python code snippet and return the output',
             description_en='Execute Python code snippet and return the output',
             parameters={
                 "type": "object",
                 "properties": {
                     "code": {
                         "type": "string",
-                        "description_zh": "要执行的Python代码",
+                        "description_zh": "Python code to execute",
                         "description_en": "Python code to execute"
                     }
                 },
@@ -53,9 +53,9 @@ def search_google_skill():
     return {
         'skill_name': 'search_google',
         'skill_type': "function",
-        'display_name_zh': '谷歌搜索',
+        'display_name_zh': 'Google Search',
         'display_name_en': 'Google Search',
-        'description_zh': '使用谷歌搜索引擎搜索给定查询的信息',
+        'description_zh': 'Use Google search engine to search information for the given query',
         'description_en': 'Use Google search engine to search information for the given query',
         'semantic_apis': ["api_search"],
         'function': SkillFunction(
@@ -68,7 +68,7 @@ def search_google_skill():
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description_zh": "要搜索的查询内容",
+                        "description_zh": "Query to be searched",
                         "description_en": "Query to be searched"
                     }
                 },
@@ -82,9 +82,9 @@ def tavily_search_skill():
     return {
         'skill_name': 'tavily_search',
         'skill_type': "function",
-        'display_name_zh': 'Tavily搜索',
+        'display_name_zh': 'Tavily Search',
         'display_name_en': 'Tavily Search',
-        'description_zh': '使用Tavily搜索引擎搜索给定查询的信息',
+        'description_zh': 'Use Tavily search engine to search information for the given query',
         'description_en': 'Use Tavily search engine to search information for the given query',
         'semantic_apis': ["api_search"],
         'function': SkillFunction(
@@ -97,7 +97,7 @@ def tavily_search_skill():
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description_zh": "要搜索的查询内容",
+                        "description_zh": "Query to be searched",
                         "description_en": "Query to be searched"
                     }
                 },
@@ -111,9 +111,9 @@ def search_duckgo_skill():
     return {
         'skill_name': 'search_duckgo',
         'skill_type': "function",
-        'display_name_zh': 'DuckDuckGo搜索',
+        'display_name_zh': 'DuckDuckGo Search',
         'display_name_en': 'Google Search',
-        'description_zh': '使用DuckDuckGo搜索引擎搜索给定查询的信息',
+        'description_zh': 'Use DuckDuckGo search engine to search information for the given query',
         'description_en': 'Use DuckDuckGo search engine to search information for the given query',
         'semantic_apis': ["api_search"],
         'function': SkillFunction(
@@ -126,7 +126,7 @@ def search_duckgo_skill():
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description_zh": "要搜索的查询内容",
+                        "description_zh": "Query to be searched",
                         "description_en": "Query to be searched"
                     },
                     "source": {
@@ -145,9 +145,9 @@ def search_wiki_skill():
     return {
         'skill_name': 'search_wiki',
         'skill_type': "function",
-        'display_name_zh': '维基百科搜索',
+        'display_name_zh': 'Wikipedia Search',
         'display_name_en': 'Google Search',
-        'description_zh': '使用维基百科搜索工具搜索给定查询的信息',
+        'description_zh': 'Use Wikipedia search tool to search information for the given query',
         'description_en': 'Use wiki search engine to search information for the given query',
         'semantic_apis': ["api_search"],
         'function': SkillFunction(
@@ -160,7 +160,7 @@ def search_wiki_skill():
                 "properties": {
                     "entity": {
                         "type": "string",
-                        "description_zh": "要搜索的查询内容",
+                        "description_zh": "Query to be searched",
                         "description_en": "Query to be searched"
                     }
                 },
@@ -174,7 +174,7 @@ def search_image_skill():
     return {
         'skill_name': 'image_search',
         'skill_type': "function",
-        'display_name_zh': '图片搜索工具',
+        'display_name_zh': 'Image Search Tool',
         'display_name_en': 'Image Search',
         'description_zh': '使用图片搜索工具搜索需要的图片信息',
         'description_en': 'Use Image search engine to search information for the given query',
@@ -189,7 +189,7 @@ def search_image_skill():
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description_zh": "要搜索的查询内容",
+                        "description_zh": "Query to be searched",
                         "description_en": "Query to be searched"
                     }
                 },
@@ -521,7 +521,7 @@ def deep_search_skill():
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description_zh": "要搜索的查询内容",
+                        "description_zh": "Query to be searched",
                         "description_en": "Query to be searched"
                     }
                 },
@@ -550,7 +550,7 @@ def search_baidu_skill():
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description_zh": "要搜索的查询内容",
+                        "description_zh": "Query to be searched",
                         "description_en": "Query to be searched"
                     }
                 },

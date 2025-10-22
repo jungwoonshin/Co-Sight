@@ -41,8 +41,8 @@ class ChatLLM:
     @staticmethod
     def clean_none_values(data):
         """
-        递归遍历数据结构，将所有 None 替换为 ""
-        静态方法，无需实例化类即可调用
+        Recursively traverse data structure, replace all None with ""
+        Static method, can be called without instantiating the class
         """
         if isinstance(data, dict):
             return {k: ChatLLM.clean_none_values(v) for k, v in data.items()}
@@ -58,7 +58,7 @@ class ChatLLM:
         """
         Create a chat completion with support for function/tool calls
         """
-        # 清洗提示词，去除None
+        # Clean prompts, remove None
         messages = ChatLLM.clean_none_values(messages)
         max_retries = 5
         response = None
@@ -82,7 +82,7 @@ class ChatLLM:
             except json.JSONDecodeError as json_error:
                 logger.error(f"JSON decode error on attempt {attempt + 1}: {json_error}")
                 
-                # 更详细的错误信息记录
+                # More detailed error information logging
                 response_info = "No response object"
                 if response is not None:
                     if hasattr(response, 'content'):
@@ -102,7 +102,7 @@ class ChatLLM:
                 
                 if attempt == max_retries - 1:
                     raise ZaeFrameworkException(400, f"JSON decode error after {max_retries} attempts: {json_error}")
-                time.sleep(5)  # 增加等待时间
+                time.sleep(5)  # Increase wait time
             except Exception as e:
                 logger.warning(f"chat with LLM error: {e} on attempt {attempt + 1}, retrying...", exc_info=True)
                 if "TPM limit reached" in str(e):
@@ -114,10 +114,10 @@ class ChatLLM:
                 if attempt == max_retries-1:
                     logger.error(f"Failed to create after {max_retries} attempts.")
                     raise ZaeFrameworkException(400, f"chat with LLM failed, please check LLM config. reason：{e}")
-                time.sleep(3)  # 增加等待时间，避免频繁重试
+                time.sleep(3)  # Increase wait time to avoid frequent retries
 
         if response and isinstance(response, ChatCompletion):
-            # 去除think标签
+            # Remove think tags
             content = response.choices[0].message.content
             if content is not None and '</think>' in content:
                 response.choices[0].message.content = content.split('</think>')[-1].strip('\n')
@@ -137,25 +137,25 @@ class ChatLLM:
                     logger.warning(f"Invalid arguments: {tool_call.arguments}")
                     
                     try:
-                        # 尝试修复JSON格式
+                        # Try to fix JSON format
                         fixed_arguments = self.chat_to_llm([{"role": "user",
                                                            "content": f"下面的json字符串格式有错误，请帮忙修正。重要：仅输出修正的字符串。\n{tool_call.arguments}"}])
-                        # 验证修复后的JSON是否有效
+                        # Verify if the fixed JSON is valid
                         json.loads(fixed_arguments)
                         tool_call.arguments = fixed_arguments
                         logger.info(f"Successfully fixed tool call arguments on attempt {attempt + 1}")
                         break
                     except Exception as fix_error:
                         logger.error(f"Failed to fix tool call arguments on attempt {attempt + 1}: {fix_error}")
-                        if attempt == 2:  # 最后一次尝试
-                            # 如果修复失败，使用默认的空JSON对象
+                        if attempt == 2:  # Last attempt
+                            # If fix fails, use default empty JSON object
                             tool_call.arguments = "{}"
                             logger.warning("Using empty JSON object as fallback for tool call arguments")
                             break
 
     @time_record
     def chat_to_llm(self, messages: List[Dict[str, Any]]):
-        # 清洗提示词，去除None
+        # Clean prompts, remove None
         messages = ChatLLM.clean_none_values(messages)
         response = self.client.chat.completions.create(
             model=self.model,
