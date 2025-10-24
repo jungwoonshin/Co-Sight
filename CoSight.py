@@ -167,5 +167,5 @@ if __name__ == '__main__':
     cosight = CoSight(llm_for_plan, llm_for_act, llm_for_tool, llm_for_vision, work_space_path)
 
     # Run CoSight
-    result = cosight.execute("帮我写一篇中兴通讯的分析报告")
+    result = cosight.execute("How many wheels are there in a car?")
     logger.info(f"final result is {result}")

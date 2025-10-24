@@ -64,13 +64,18 @@ class ChatLLM:
         response = None
         for attempt in range(max_retries):
             try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    tools=tools,
-                    tool_choice="auto",
-                    temperature=self.temperature
-                )
+                # Build kwargs conditionally to avoid sending temperature=0.0 for incompatible models
+                create_kwargs = {
+                    "model": self.model,
+                    "messages": messages,
+                    "tools": tools,
+                    "tool_choice": "auto"
+                }
+                # Only include temperature if it's not 0.0 (some models like gpt-5 don't support it)
+                if self.temperature != 0.0:
+                    create_kwargs["temperature"] = self.temperature
+
+                response = self.client.chat.completions.create(**create_kwargs)
                 logger.info(f"LLM with tools chat completions response is {response}")
                 if hasattr(response, 'choices') and response.choices and len(response.choices) > 0:
                     self.check_and_fix_tool_call_params(response)
@@ -157,11 +162,16 @@ class ChatLLM:
     def chat_to_llm(self, messages: List[Dict[str, Any]]):
         # Clean prompts, remove None
         messages = ChatLLM.clean_none_values(messages)
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=self.temperature
-        )
+        # Build kwargs conditionally to avoid sending temperature=0.0 for incompatible models
+        create_kwargs = {
+            "model": self.model,
+            "messages": messages
+        }
+        # Only include temperature if it's not 0.0 (some models like gpt-5 don't support it)
+        if self.temperature != 0.0:
+            create_kwargs["temperature"] = self.temperature
+
+        response = self.client.chat.completions.create(**create_kwargs)
         logger.info(f"LLM chat completions response is {response}")
         # 去除think标签
         content = response.choices[0].message.content

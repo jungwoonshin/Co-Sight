@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python test_extract_answer.py:*)",
+      "Bash(awk:*)",
+      "Bash(python test_response_format.py:*)",
+      "Bash(git checkout:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(python:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

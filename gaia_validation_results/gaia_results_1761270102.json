@@ -1,0 +1,25 @@
+{
+  "results": [
+    {
+      "test_id": "case_0",
+      "index": 0,
+      "question": "A paper about AI regulation that was originally submitted to arXiv.org in June 2022 shows a figure with three axes, where each axis has a label word at both ends. Which of these words is used to describe a type of society in a Physics and Society article submitted to arXiv.org on August 11, 2016?",
+      "ground_truth": "egalitarian",
+      "predicted": "\"egalitarian\" with a one-sentence explanation including inline arXiv citations [arXiv:2207.01510, Fig. 1; abstract] and [arXiv:1608.03637, Introduction]. Included a brief methods note summarizing identification of the 2022 axes and scanning of the 2016 physics.soc-ph article to find explicit “{word} society” phrases, yielding a single exact overlap. No blockers encountered.",
+      "is_correct": true,
+      "execution_time": 61625.301615953445,
+      "llm_call_count": 99,
+      "error": null
+    }
+  ],
+  "metrics": {
+    "total_cases": 1,
+    "correct_cases": 1,
+    "accuracy": 1.0,
+    "error_cases": 0,
+    "avg_execution_time": 61625.301615953445,
+    "total_llm_calls": 99,
+    "avg_llm_calls_per_case": 99.0
+  },
+  "timestamp": 1761270102
+}
