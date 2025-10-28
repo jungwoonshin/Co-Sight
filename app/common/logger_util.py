@@ -212,6 +212,10 @@ class CompressedRotatingFileHandler(RotatingFileHandler):
                     os.remove(file)
                 except OSError:
                     continue
+    
+    def emit(self, record):
+        super().emit(record)
+        self.flush()  # Force immediate write to disk
 
 
 def get_logger(name="co-sight"):

@@ -17,6 +17,7 @@ import inspect
 import json
 import sys
 import time
+import hashlib
 from typing import List, Dict, Any
 
 import asyncio
@@ -47,6 +48,13 @@ class BaseAgent:
         self.plan_id = plan_id
         self._tool_event_sequence = 0  # Tool event sequence number
         self._file_saver_call_count = {}  # Record file_saver call count for each step
+        
+        # Tool call optimization
+        self._tool_cache = {}  # Cache tool results
+        self._batch_tools = True  # Enable batching
+        self._cache_ttl = 300  # Cache TTL in seconds (5 minutes)
+        self._cache_timestamps = {}  # Track cache timestamps
+        
         # Only set plan to None if it hasn't been set by subclass
         if not hasattr(self, 'plan'):
             self.plan = None  # Will be set by subclasses that have access to Plan
@@ -368,38 +376,140 @@ class BaseAgent:
             logger.info(f'act agent call with tools message: {messages}')
             response = self.llm.create_with_tools(messages, self.tools)
             logger.info(f'act agent call with tools response: {response}')
+            
+            # DEBUG: Log detailed response information
+            logger.debug(f'DEBUG - Response type: {type(response)}')
+            logger.debug(f'DEBUG - Response content: {getattr(response, "content", "NO_CONTENT_ATTR")}')
+            logger.debug(f'DEBUG - Response tool_calls: {getattr(response, "tool_calls", "NO_TOOL_CALLS_ATTR")}')
+            logger.debug(f'DEBUG - Response content is None: {response.content is None}')
+            logger.debug(f'DEBUG - Response content == "None": {response.content == "None"}')
+            logger.debug(f'DEBUG - Response content == None: {response.content == None}')
 
             # Process initial response
             result = self._process_response(response, messages, step_index)
             logger.info(f'iter {i} for {self.agent_instance.instance_name} call tools result: {result}')
+            logger.debug(f'DEBUG - Result type: {type(result)}')
+            logger.debug(f'DEBUG - Result value: {repr(result)}')
+            logger.debug(f'DEBUG - Result is truthy: {bool(result)}')
             if result:
+                logger.info(f'DEBUG - Returning result: {result}')
                 return result
 
+        logger.warning(f'DEBUG - Max iterations ({max_iteration}) reached without meaningful result')
         if max_iteration > 1:
             return self._handle_max_iteration(messages, step_index)
         return messages[-1].get("content")
 
     def _process_response(self, response, messages, step_index):
+        logger.debug(f'DEBUG - _process_response called with response: {response}')
+        logger.debug(f'DEBUG - response.tool_calls: {getattr(response, "tool_calls", "NO_TOOL_CALLS")}')
+        logger.debug(f'DEBUG - response.content: {repr(getattr(response, "content", "NO_CONTENT"))}')
+        
+        # Handle the "None" string issue when there are tool calls
+        if response.content == "None" and response.tool_calls:
+            logger.warning("LLM returned 'None' content with tool calls - this breaks conversation flow")
+            # Generate meaningful content based on the tool calls
+            tool_names = [call.function.name for call in response.tool_calls]
+            response.content = f"I need to use the following tools: {', '.join(tool_names)}"
+            logger.info(f"Fixed 'None' content to: {response.content}")
+        
         if not response.tool_calls:
+            logger.debug(f'DEBUG - No tool calls, returning content: {repr(response.content)}')
             messages.append({"role": "assistant", "content": response.content})
             return response.content
 
+        # Check for early termination based on content
+        logger.debug(f'DEBUG - Checking if task is complete for content: {repr(response.content)}')
+        if self._is_task_complete(response.content):
+            logger.debug(f'DEBUG - Task marked as complete, returning content: {repr(response.content)}')
+            messages.append({"role": "assistant", "content": response.content})
+            return response.content
+
+        logger.debug(f'DEBUG - Adding assistant message with tool calls')
         messages.append({
             "role": "assistant",
             "content": response.content,
             "tool_calls": response.tool_calls
         })
 
+        logger.debug(f'DEBUG - Executing tool calls: {len(response.tool_calls)} calls')
         results = self._execute_tool_calls(response.tool_calls, step_index)
+        logger.debug(f'DEBUG - Tool call results: {len(results)} results')
         messages.extend(results)
 
         # Check for termination conditions
-        for result in results:
+        logger.debug(f'DEBUG - Checking termination conditions')
+        for i, result in enumerate(results):
+            logger.debug(f'DEBUG - Result {i}: name={result.get("name", "NO_NAME")}, content={repr(result.get("content", "NO_CONTENT"))}')
             if result["name"] in ["terminate", "mark_step"]:
+                logger.debug(f'DEBUG - Found termination tool: {result["name"]}, returning: {repr(result["content"])}')
                 return result["content"]
-        return None
+        
+        # Return meaningful content instead of None to prevent infinite loops
+        if results:
+            logger.debug(f'DEBUG - No termination conditions met, returning last tool result: {repr(results[-1]["content"])}')
+            return results[-1]["content"]
+        else:
+            logger.debug(f'DEBUG - No tool results available, returning response content: {repr(response.content)}')
+            return response.content
+
+    def _is_task_complete(self, content):
+        """Check if the response indicates task completion"""
+        if not content:
+            return False
+        
+        completion_indicators = [
+            "task completed", "finished", "done", "concluded", "completed successfully",
+            "任务完成", "已完成", "结束", "完成", "成功完成",
+            "all done", "work finished", "process complete"
+        ]
+        
+        content_lower = content.lower()
+        return any(indicator in content_lower for indicator in completion_indicators)
 
     def _execute_tool_calls(self, tool_calls, step_index):
+        if not self._batch_tools:
+            return self._execute_tool_calls_original(tool_calls, step_index)
+        
+        # Batch similar tool calls
+        batched_calls = self._batch_similar_calls(tool_calls)
+        results = []
+        
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            
+            for batch in batched_calls:
+                if self._can_use_cache(batch):
+                    # Use cached results
+                    cached_results = self._get_cached_results(batch)
+                    results.extend(cached_results)
+                else:
+                    # Execute batch and cache results
+                    futures.append(executor.submit(
+                        self._execute_batch_with_caching,
+                        batch, step_index
+                    ))
+            
+            # Collect results from futures
+            for future in futures:
+                try:
+                    batch_results = future.result()
+                    results.extend(batch_results)
+                except Exception as e:
+                    logger.error(f"Batch execution error: {e}", exc_info=True)
+                    # Fallback to individual execution
+                    for tool_call in batch:
+                        results.append({
+                            "role": "tool",
+                            "name": tool_call.function.name,
+                            "tool_call_id": tool_call.id,
+                            "content": f"Execution error: {str(e)}"
+                        })
+        
+        return results
+
+    def _execute_tool_calls_original(self, tool_calls, step_index):
+        """Original tool call execution method"""
         results = []
         with ThreadPoolExecutor() as executor:
             futures = []
@@ -434,6 +544,120 @@ class BaseAgent:
                         "tool_call_id": tool_call.id,
                         "content": f"Execution error: {str(e)}"
                     })
+        return results
+
+    def _batch_similar_calls(self, tool_calls):
+        """Group similar tool calls together for batching"""
+        batches = []
+        current_batch = []
+        
+        for tool_call in tool_calls:
+            function_name = tool_call.function.name
+            
+            # Check if this call can be batched with current batch
+            if (current_batch and 
+                current_batch[0].function.name == function_name and
+                self._is_cacheable_tool(function_name)):
+                current_batch.append(tool_call)
+            else:
+                if current_batch:
+                    batches.append(current_batch)
+                current_batch = [tool_call]
+        
+        if current_batch:
+            batches.append(current_batch)
+        
+        return batches
+
+    def _is_cacheable_tool(self, tool_name):
+        """Check if a tool's results can be cached"""
+        cacheable_tools = [
+            "file_read", "file_find_in_content", "search_google", 
+            "search_baidu", "search_wiki", "tavily_search"
+        ]
+        return tool_name in cacheable_tools
+
+    def _can_use_cache(self, batch):
+        """Check if we can use cached results for this batch"""
+        if not batch:
+            return False
+        
+        tool_name = batch[0].function.name
+        if not self._is_cacheable_tool(tool_name):
+            return False
+        
+        # Check if all calls in batch have cached results
+        for tool_call in batch:
+            cache_key = self._get_cache_key(tool_call)
+            if not self._is_cache_valid(cache_key):
+                return False
+        
+        return True
+
+    def _get_cache_key(self, tool_call):
+        """Generate cache key for tool call"""
+        function_name = tool_call.function.name
+        function_args = tool_call.function.arguments
+        
+        # Create a hash of the function name and arguments
+        key_string = f"{function_name}:{function_args}"
+        return hashlib.md5(key_string.encode()).hexdigest()
+
+    def _is_cache_valid(self, cache_key):
+        """Check if cache entry is still valid"""
+        if cache_key not in self._cache_timestamps:
+            return False
+        
+        current_time = time.time()
+        cache_time = self._cache_timestamps[cache_key]
+        
+        return (current_time - cache_time) < self._cache_ttl
+
+    def _get_cached_results(self, batch):
+        """Get cached results for a batch of tool calls"""
+        results = []
+        for tool_call in batch:
+            cache_key = self._get_cache_key(tool_call)
+            if cache_key in self._tool_cache:
+                cached_result = self._tool_cache[cache_key].copy()
+                cached_result["tool_call_id"] = tool_call.id
+                results.append(cached_result)
+                logger.info(f"Using cached result for {tool_call.function.name}")
+        
+        return results
+
+    def _execute_batch_with_caching(self, batch, step_index):
+        """Execute a batch of tool calls and cache the results"""
+        results = []
+        
+        for tool_call in batch:
+            function_name = tool_call.function.name
+            function_args = tool_call.function.arguments
+            
+            # Execute the tool call
+            if function_name in self.functions:
+                result = self._execute_tool_call(
+                    function_name=function_name,
+                    function_args=function_args,
+                    tool_call_id=tool_call.id,
+                    step_index=step_index
+                )
+            else:
+                result = self._execute_mcp_tool_call(
+                    function_name=function_name,
+                    function_args=function_args,
+                    tool_call_id=tool_call.id
+                )
+            
+            results.append(result)
+            
+            # Cache the result if it's cacheable
+            if self._is_cacheable_tool(function_name):
+                cache_key = self._get_cache_key(tool_call)
+                self._tool_cache[cache_key] = result.copy()
+                self._cache_timestamps[cache_key] = time.time()
+                logger.info(f"Cached result for {function_name}")
+        
         return results
 
     def _handle_max_iteration(self, messages, step_index):

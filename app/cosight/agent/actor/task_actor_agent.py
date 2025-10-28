@@ -147,11 +147,25 @@ class TaskActorAgent(BaseAgent):
         
         self.plan.mark_step(step_index, step_status="in_progress")
         plan_report_event_manager.publish("plan_process", self.plan)
+        
+        # Add context from previous steps
+        previous_context = self._get_previous_step_context(step_index)
+        
         is_chinese = bool(re.search(r'[\u4e00-\u9fff]', self.question)) if self.question else True
         if is_chinese:
             task_prompt = actor_execute_task_prompt_zh(question, step_index, self.plan, self.work_space_path)
         else:
             task_prompt = actor_execute_task_prompt(question, step_index, self.plan, self.work_space_path)
+
+        # Add previous step context if available
+        if previous_context:
+            context_prompt = f"""
+Previous Step Context:
+{previous_context}
+
+Current Step: {self.plan.steps[step_index]}
+"""
+            self.history.append({"role": "user", "content": context_prompt})
 
         self.history.append(
             {"role": "user", "content": task_prompt})
@@ -168,3 +182,30 @@ class TaskActorAgent(BaseAgent):
             # Report plan progress for failed steps as well
             plan_report_event_manager.publish("plan_process", self.plan)
             return str(e)
+
+    def _get_previous_step_context(self, current_step_index):
+        """Get context from previous completed steps"""
+        if current_step_index <= 0:
+            return None
+        
+        context_parts = []
+        
+        # Get context from immediate previous steps (limit to last 2 steps to avoid token overflow)
+        start_index = max(0, current_step_index - 2)
+        
+        for step_idx in range(start_index, current_step_index):
+            if step_idx < len(self.plan.steps):
+                step = self.plan.steps[step_idx]
+                step_status = self.plan.step_statuses.get(step, "")
+                
+                if step_status == "completed":
+                    step_notes = self.plan.step_notes.get(step, "")
+                    if step_notes:
+                        context_parts.append(f"Step {step_idx}: {step}")
+                        context_parts.append(f"Result: {step_notes[:500]}...")  # Limit length
+                        context_parts.append("---")
+        
+        if context_parts:
+            return "\n".join(context_parts)
+        
+        return None

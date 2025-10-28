@@ -15,6 +15,8 @@
 
 import os
 import xml.etree.ElementTree as ET
+import time
+import hashlib
 from typing import Any, Dict, List, Literal, Optional, TypeAlias, Union
 
 import requests
@@ -31,6 +33,40 @@ class SearchToolkit:
     def __init__(self):
         proxy = os.environ.get("PROXY")
         self.proxies = {"http": proxy, "https": proxy} if proxy else None
+        
+        # Search result caching
+        self._search_cache = {}
+        self._cache_ttl = 600  # Cache TTL in seconds (10 minutes)
+        self._cache_timestamps = {}
+
+    def _get_cache_key(self, method_name: str, **kwargs) -> str:
+        """Generate cache key for search method"""
+        # Create a hash of the method name and parameters
+        key_string = f"{method_name}:{sorted(kwargs.items())}"
+        return hashlib.md5(key_string.encode()).hexdigest()
+
+    def _is_cache_valid(self, cache_key: str) -> bool:
+        """Check if cache entry is still valid"""
+        if cache_key not in self._cache_timestamps:
+            return False
+        
+        current_time = time.time()
+        cache_time = self._cache_timestamps[cache_key]
+        
+        return (current_time - cache_time) < self._cache_ttl
+
+    def _get_cached_result(self, cache_key: str):
+        """Get cached search result"""
+        if cache_key in self._search_cache and self._is_cache_valid(cache_key):
+            logger.info(f"Using cached search result for key: {cache_key[:8]}...")
+            return self._search_cache[cache_key]
+        return None
+
+    def _cache_result(self, cache_key: str, result):
+        """Cache search result"""
+        self._search_cache[cache_key] = result
+        self._cache_timestamps[cache_key] = time.time()
+        logger.info(f"Cached search result for key: {cache_key[:8]}...")
 
     def search_wiki(self, entity: str) -> str:
         r"""Search the entity in WikiPedia and return the summary of the
@@ -44,6 +80,12 @@ class SearchToolkit:
             str: The search result. If the page corresponding to the entity
                 exists, return the summary of this entity in a string.
         """
+        # Check cache first
+        cache_key = self._get_cache_key("search_wiki", entity=entity)
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result is not None:
+            return cached_result
+
         import wikipedia
 
         result: str
@@ -77,6 +119,9 @@ class SearchToolkit:
         # 如果有URL，将URL信息添加到结果中
         if page_url:
             result = f"Wikipedia URL: {page_url}\n\nSummary:\n{result}"
+        
+        # Cache the result
+        self._cache_result(cache_key, result)
         
         logger.info(f'search_wiki result = {result}')
         return result
@@ -419,6 +464,12 @@ class SearchToolkit:
                 }
             title, description, url of a website.
         """
+        # Check cache first
+        cache_key = self._get_cache_key("search_google", query=query)
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result is not None:
+            return cached_result
+
         import requests
 
         # https://developers.google.com/custom-search/v1/overview
@@ -488,6 +539,10 @@ class SearchToolkit:
         except requests.RequestException:
             # Handle specific exceptions or general request exceptions
             responses.append({"error": "google search failed."})
+        
+        # Cache the result
+        self._cache_result(cache_key, responses)
+        
         # If no answer found, return an empty list
         logger.info(f'search_google result = {responses}')
         return responses
@@ -691,6 +746,12 @@ class SearchToolkit:
                 - 'published_date' (str): Publication date for news topics
                   (if available).
         """
+        # Check cache first
+        cache_key = self._get_cache_key("tavily_search", query=query, num_results=num_results, **kwargs)
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result is not None:
+            return cached_result
+
         from tavily import TavilyClient  # type: ignore[import-untyped]
 
         Tavily_API_KEY = os.getenv("TAVILY_API_KEY")
@@ -704,8 +765,13 @@ class SearchToolkit:
 
         try:
             results = client.search(query, max_results=num_results, **kwargs)
+            
+            # Cache the result
+            self._cache_result(cache_key, results)
+            
             logger.info(f'tavily_search result = {results}')
             return results
         except Exception as e:
             logger.error(f'error": f"An unexpected error occurred: {str(e)}', exc_info=True)
-            return [{"error": f"An unexpected error occurred: {e!s}"}]
+            error_result = [{"error": f"An unexpected error occurred: {e!s}"}]
+            return error_result

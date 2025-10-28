@@ -15,6 +15,8 @@
 
 from threading import Lock
 
+from app.cosight.task.todolist import Plan
+
 
 class TaskManager:
     _lock = Lock()
@@ -30,7 +32,7 @@ class TaskManager:
             cls.plan_to_id[id(plan)] = plan_id
 
     @classmethod
-    def get_plan(cls, plan_id: str):
+    def get_plan(cls, plan_id: str) -> Plan:
         with cls._lock:
             return cls.plans.get(plan_id)
 

@@ -63,6 +63,10 @@ class Plan:
         logger.debug(f"get_ready_steps dependencies: {self.dependencies}")
         ready_steps = []
         for step_index in range(len(self.steps)):
+            # Check if this step can be merged with previous steps
+            if self._can_merge_with_previous(step_index):
+                continue
+                
             # Get all dependencies for this step
             dependencies = self.dependencies.get(step_index, [])
 
@@ -73,6 +77,124 @@ class Plan:
                     ready_steps.append(step_index)
 
         return ready_steps
+
+    def _can_merge_with_previous(self, step_index: int) -> bool:
+        """Check if this step can be merged with previous steps to reduce LLM calls"""
+        if step_index <= 0:
+            return False
+        
+        current_step = self.steps[step_index]
+        previous_step = self.steps[step_index - 1]
+        
+        # Check if previous step is completed
+        if self.step_statuses.get(previous_step) != "completed":
+            return False
+        
+        # Define mergeable step patterns
+        mergeable_patterns = [
+            # Search-related steps
+            ("search", "analyze"),
+            ("search", "summarize"),
+            ("find", "analyze"),
+            ("find", "summarize"),
+            ("research", "analyze"),
+            ("research", "summarize"),
+            
+            # File operations
+            ("read", "process"),
+            ("read", "analyze"),
+            ("read", "summarize"),
+            ("extract", "process"),
+            ("extract", "analyze"),
+            
+            # Data processing
+            ("collect", "analyze"),
+            ("collect", "process"),
+            ("gather", "analyze"),
+            ("gather", "process"),
+            
+            # Simple operations that can be combined
+            ("check", "verify"),
+            ("validate", "confirm"),
+            ("review", "check"),
+        ]
+        
+        # Check if current and previous steps match mergeable patterns
+        current_lower = current_step.lower()
+        previous_lower = previous_step.lower()
+        
+        for pattern1, pattern2 in mergeable_patterns:
+            if pattern1 in previous_lower and pattern2 in current_lower:
+                logger.info(f"Merging step {step_index} with previous step {step_index - 1}")
+                return True
+        
+        # Check for similar content that can be merged
+        if self._are_steps_similar(current_step, previous_step):
+            logger.info(f"Merging similar steps {step_index - 1} and {step_index}")
+            return True
+        
+        return False
+
+    def _are_steps_similar(self, step1: str, step2: str) -> bool:
+        """Check if two steps are similar enough to be merged"""
+        # Simple similarity check based on common keywords
+        step1_words = set(step1.lower().split())
+        step2_words = set(step2.lower().split())
+        
+        # Calculate Jaccard similarity
+        intersection = step1_words.intersection(step2_words)
+        union = step1_words.union(step2_words)
+        
+        if len(union) == 0:
+            return False
+        
+        similarity = len(intersection) / len(union)
+        
+        # If similarity is high and both steps are simple operations
+        return similarity > 0.6 and len(step1_words) < 10 and len(step2_words) < 10
+
+    def merge_steps(self, step_index1: int, step_index2: int) -> bool:
+        """Merge two steps into one"""
+        if step_index1 >= step_index2 or step_index2 >= len(self.steps):
+            return False
+        
+        step1 = self.steps[step_index1]
+        step2 = self.steps[step_index2]
+        
+        # Create merged step description
+        merged_step = f"{step1} and {step2}"
+        
+        # Update the plan
+        self.steps[step_index1] = merged_step
+        
+        # Remove the second step
+        self.steps.pop(step_index2)
+        
+        # Update statuses and notes
+        if step_index1 in self.step_statuses:
+            self.step_statuses[merged_step] = self.step_statuses[step1]
+            del self.step_statuses[step1]
+        
+        if step_index1 in self.step_notes:
+            self.step_notes[merged_step] = self.step_notes[step1]
+            del self.step_notes[step1]
+        
+        # Update dependencies
+        new_dependencies = {}
+        for step_idx, deps in self.dependencies.items():
+            if step_idx == step_index2:
+                # Skip the removed step
+                continue
+            elif step_idx > step_index2:
+                # Adjust indices for steps after the removed step
+                new_dependencies[step_idx - 1] = [dep - 1 if dep > step_index2 else dep for dep in deps]
+            else:
+                new_dependencies[step_idx] = deps
+        
+        self.dependencies = new_dependencies
+        
+        logger.info(f"Successfully merged steps {step_index1} and {step_index2}")
+        return True
 
     def update(self, title: Optional[str] = None, steps: Optional[List[str]] = None,
                dependencies: Optional[Dict[int, List[int]]] = None) -> None:
@@ -285,6 +407,59 @@ class Plan:
             bool: True if any step is blocked, False otherwise
         """
         return any(status == "blocked" for status in self.step_statuses.values())
+
+    def print_dependency_table(self):
+        """Print a text-based dependency table"""
+        print("\n" + "="*80)
+        print(f"Plan: {self.title}")
+        print("="*80)
+        print(f"{'Step':<6} {'Status':<15} {'Dependencies':<20} {'Step Description':<40}")
+        print("-"*80)
+        
+        for i, step in enumerate(self.steps):
+            status = self.step_statuses.get(step, "not_started")
+            deps = self.dependencies.get(i, [])
+            dep_str = ', '.join(map(str, deps)) if deps else "None"
+            
+            # Truncate long descriptions
+            desc = step[:37] + "..." if len(step) > 40 else step
+            
+            print(f"{i:<6} {status:<15} {dep_str:<20} {desc:<40}")
+        
+        print("="*80)
+        progress = self.get_progress()
+        print(f"Progress: {progress}")
+        print("="*80 + "\n")
+
+    def visualize(self, output_path: str = None, title: str = None):
+        """Visualize the plan dependencies as a graph.
+        
+        Args:
+            output_path (str, optional): Path to save the visualization. If None, displays inline.
+            title (str, optional): Title for the visualization. Defaults to plan title.
+            
+        Returns:
+            str: Path to saved visualization or None if displayed.
+        
+        Example:
+            >>> plan.visualize("plan_graph.png")
+            >>> plan.visualize()  # Display inline
+        """
+        try:
+            from visualize_plan import PlanVisualizer
+            
+            visualizer = PlanVisualizer(self)
+            visualizer.print_dependency_table()
+            visualizer.visualize(output_path, title, figsize=(14, 10))
+            
+            return output_path
+        except ImportError as e:
+            logger.warning(f"Visualization dependencies not installed: {e}")
+            logger.info("To enable visualization, install: pip install matplotlib networkx")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to visualize plan: {e}")
+            return None
 
 
 def get_last_folder_name(workspace_path: str) -> str:
